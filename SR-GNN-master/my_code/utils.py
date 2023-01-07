@@ -29,9 +29,9 @@ def build_graph(train_data):
     return graph
 
 
-def data_masks(all_usr_pois, item_tail):
+def data_masks(all_usr_pois, item_tail, max_seq_length,):
     us_lens = [len(upois) for upois in all_usr_pois]
-    len_max = max(us_lens)
+    len_max = max_seq_length
     us_pois = [upois + item_tail * (len_max - le) for upois, le in zip(all_usr_pois, us_lens)]
     us_msks = [[1] * le + [0] * (len_max - le) for le in us_lens]
     return us_pois, us_msks, len_max
@@ -52,9 +52,9 @@ def split_validation(train_set, valid_portion):
 
 
 class Data():
-    def __init__(self, data, shuffle=False, graph=None):
+    def __init__(self, data, opt, shuffle=False, graph=None):
         inputs = data[0]
-        inputs, mask, len_max = data_masks(inputs, [0])
+        inputs, mask, len_max = data_masks(inputs, [0], opt.max_seq_length)
         self.inputs = np.asarray(inputs)
         self.mask = np.asarray(mask)
         self.len_max = len_max

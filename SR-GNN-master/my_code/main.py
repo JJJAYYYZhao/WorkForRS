@@ -29,7 +29,7 @@ parser.add_argument('--valid_portion', type=float, default=0.1, help='split the 
 
 #新添参数
 parser.add_argument("--hidden_dropout_prob", default=0.2, type=float)
-parser.add_argument("--max_seq_length", default=50, type=int)
+parser.add_argument("--max_seq_length", default=20, type=int)
 
 opt = parser.parse_args()
 print(opt)
@@ -44,8 +44,15 @@ def main():
         test_data = pickle.load(open('../datasets/' + opt.dataset + '/test.txt', 'rb'))
     # all_train_seq = pickle.load(open('../datasets/' + opt.dataset + '/all_train_seq.txt', 'rb'))
     # g = build_graph(all_train_seq)
-    train_data = Data(train_data, shuffle=True)
-    test_data = Data(test_data, shuffle=False)
+    '''
+    # 计算所有数据中最大的seq_len
+    max_seq_length=max(max([len(seq) for seq in train_data[0]]),max([len(seq) for seq in test_data[0]]))
+    print(max_seq_length)
+    exit()
+    # 输出： 16
+    '''
+    train_data = Data(train_data, opt, shuffle=True)
+    test_data = Data(test_data, opt, shuffle=False)
     # del all_train_seq, g
     if opt.dataset == 'diginetica':
         n_node = 43098
@@ -54,7 +61,7 @@ def main():
     else:
         n_node = 310
 
-    model = trans_to_cuda(SessionGraph(opt, n_node,opt))
+    model = trans_to_cuda(SessionGraph(opt, n_node))
 
     start = time.time()
     best_result = [0, 0]
