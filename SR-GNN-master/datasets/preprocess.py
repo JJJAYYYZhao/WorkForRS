@@ -22,7 +22,7 @@ print(opt)
 dataset = 'sample_train-item-views.csv'
 if opt.dataset == 'diginetica':
     dataset = 'train-item-views.csv'
-elif opt.dataset =='yoochoose':
+elif opt.dataset == 'yoochoose':
     dataset = 'yoochoose-clicks.dat'
 
 print("-- Starting @ %ss" % datetime.datetime.now())
@@ -32,6 +32,8 @@ with open(dataset, "r") as f:
     else:
         reader = csv.DictReader(f, delimiter=';')
     sess_clicks = {}
+    # sess_timestamps记录每段对话的点击时间，后续处理sess_clicks时也相应的处理sess_timestamps
+    sess_timestamps = {}
     sess_date = {}
     ctr = 0
     curid = -1
@@ -69,6 +71,7 @@ with open(dataset, "r") as f:
         for i in list(sess_clicks):
             sorted_clicks = sorted(sess_clicks[i], key=operator.itemgetter(1))
             sess_clicks[i] = [c[0] for c in sorted_clicks]
+            sess_timestamps[i] = [c[1] for c in sorted_clicks]
     sess_date[curid] = date
 print("-- Reading data @ %ss" % datetime.datetime.now())
 
@@ -77,6 +80,7 @@ for s in list(sess_clicks):
     if len(sess_clicks[s]) == 1:
         del sess_clicks[s]
         del sess_date[s]
+        del sess_timestamps[s]
 
 # Count number of times each item appears
 iid_counts = {}
@@ -90,15 +94,23 @@ for s in sess_clicks:
 
 sorted_counts = sorted(iid_counts.items(), key=operator.itemgetter(1))
 
+# 筛选出点击次数大于5次的item序列
 length = len(sess_clicks)
 for s in list(sess_clicks):
     curseq = sess_clicks[s]
     filseq = list(filter(lambda i: iid_counts[i] >= 5, curseq))
+    # 对时间戳序列同样做筛选操作
+    # ======start======
+    curseq_time = sess_timestamps[s]
+    filseq_time = [item for index, item in enumerate(curseq_time) if iid_counts[curseq[index]] >= 5]
+    # ======end======
     if len(filseq) < 2:
         del sess_clicks[s]
         del sess_date[s]
+        del sess_timestamps[s]
     else:
         sess_clicks[s] = filseq
+        sess_timestamps[s] = filseq_time
 
 # Split out test set based on dates
 dates = list(sess_date.items())
@@ -115,29 +127,33 @@ if opt.dataset == 'yoochoose':
 else:
     splitdate = maxdate - 86400 * 7
 
-print('Splitting date', splitdate)      # Yoochoose: ('Split date', 1411930799.0)
+print('Splitting date', splitdate)  # Yoochoose: ('Split date', 1411930799.0)
 tra_sess = filter(lambda x: x[1] < splitdate, dates)
 tes_sess = filter(lambda x: x[1] > splitdate, dates)
 
 # Sort sessions by date
-tra_sess = sorted(tra_sess, key=operator.itemgetter(1))     # [(session_id, timestamp), (), ]
-tes_sess = sorted(tes_sess, key=operator.itemgetter(1))     # [(session_id, timestamp), (), ]
-print(len(tra_sess))    # 186670    # 7966257
-print(len(tes_sess))    # 15979     # 15324
+tra_sess = sorted(tra_sess, key=operator.itemgetter(1))  # [(session_id, timestamp), (), ]
+tes_sess = sorted(tes_sess, key=operator.itemgetter(1))  # [(session_id, timestamp), (), ]
+print(len(tra_sess))  # 186670    # 7966257
+print(len(tes_sess))  # 15979     # 15324
 print(tra_sess[:3])
 print(tes_sess[:3])
 print("-- Splitting train set and test set @ %ss" % datetime.datetime.now())
 
 # Choosing item count >=5 gives approximately the same number of items as reported in paper
 item_dict = {}
+
+
 # Convert training sessions to sequences and renumber items to start from 1
 def obtian_tra():
     train_ids = []
     train_seqs = []
     train_dates = []
+    train_timestamps = []
     item_ctr = 1
     for s, date in tra_sess:
         seq = sess_clicks[s]
+        seq_time = sess_timestamps[s]
         outseq = []
         for i in seq:
             if i in item_dict:
@@ -151,8 +167,9 @@ def obtian_tra():
         train_ids += [s]
         train_dates += [date]
         train_seqs += [outseq]
-    print(item_ctr)     # 43098, 37484
-    return train_ids, train_dates, train_seqs
+        train_timestamps += [seq_time]
+    print(item_ctr)  # 43098, 37484
+    return train_ids, train_dates, train_seqs, train_timestamps
 
 
 # Convert test sessions to sequences, ignoring items that do not appear in training set
@@ -160,8 +177,10 @@ def obtian_tes():
     test_ids = []
     test_seqs = []
     test_dates = []
+    test_timestamps = []
     for s, date in tes_sess:
         seq = sess_clicks[s]
+        seq_time = sess_timestamps[s]
         outseq = []
         for i in seq:
             if i in item_dict:
@@ -171,32 +190,39 @@ def obtian_tes():
         test_ids += [s]
         test_dates += [date]
         test_seqs += [outseq]
-    return test_ids, test_dates, test_seqs
+        test_timestamps += [seq_time]
+    return test_ids, test_dates, test_seqs, test_timestamps
 
 
-tra_ids, tra_dates, tra_seqs = obtian_tra()
-tes_ids, tes_dates, tes_seqs = obtian_tes()
+# 新添加返回参数：序列的时间戳tra_timestamps、tes_timestamps，在函数obtain_tra中已有对应的修改
+tra_ids, tra_dates, tra_seqs, tra_timestamps = obtian_tra()
+tes_ids, tes_dates, tes_seqs, tes_timestamps = obtian_tes()
 
 
-def process_seqs(iseqs, idates):
+def process_seqs(iseqs, idates, itimestamps):
     out_seqs = []
     out_dates = []
+    out_time_interval = []
     labs = []
     ids = []
-    for id, seq, date in zip(range(len(iseqs)), iseqs, idates):
+    for id, seq, date, timestamps in zip(range(len(iseqs)), iseqs, idates, itimestamps):
+        time_interval = [timestamps[i + 1] - timestamps[i] for i in range(0, len(timestamps) - 1)]
+
         for i in range(1, len(seq)):
             tar = seq[-i]
             labs += [tar]
             out_seqs += [seq[:-i]]
+            out_time_interval += [time_interval[:len(seq[:-i])]]
             out_dates += [date]
             ids += [id]
-    return out_seqs, out_dates, labs, ids
+    return out_seqs, out_dates, out_time_interval, labs, ids
 
 
-tr_seqs, tr_dates, tr_labs, tr_ids = process_seqs(tra_seqs, tra_dates)
-te_seqs, te_dates, te_labs, te_ids = process_seqs(tes_seqs, tes_dates)
-tra = (tr_seqs, tr_labs)
-tes = (te_seqs, te_labs)
+# 新添加返回参数：各点击的时间间隔序列tr_time_invertal、te_time_invertal，在函数process_seqs中已有对应的修改
+tr_seqs, tr_dates, tr_time_invertal, tr_labs, tr_ids = process_seqs(tra_seqs, tra_dates, tra_timestamps)
+te_seqs, te_dates, te_time_interval, te_labs, te_ids = process_seqs(tes_seqs, tes_dates, tes_timestamps)
+tra = (tr_seqs, tr_labs, tr_time_invertal)
+tes = (te_seqs, te_labs, te_time_interval)
 print(len(tr_seqs))
 print(len(te_seqs))
 print(tr_seqs[:3], tr_dates[:3], tr_labs[:3])
@@ -207,7 +233,7 @@ for seq in tra_seqs:
     all += len(seq)
 for seq in tes_seqs:
     all += len(seq)
-print('avg length: ', all/(len(tra_seqs) + len(tes_seqs) * 1.0))
+print('avg length: ', all / (len(tra_seqs) + len(tes_seqs) * 1.0))
 if opt.dataset == 'diginetica':
     if not os.path.exists('diginetica'):
         os.makedirs('diginetica')

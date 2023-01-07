@@ -29,12 +29,13 @@ def build_graph(train_data):
     return graph
 
 
-def data_masks(all_usr_pois, item_tail, max_seq_length,):
+def data_masks(all_usr_pois,time_interval, item_tail, max_seq_length,):
     us_lens = [len(upois) for upois in all_usr_pois]
     len_max = max_seq_length
     us_pois = [upois + item_tail * (len_max - le) for upois, le in zip(all_usr_pois, us_lens)]
+    us_interval = [uinterval + item_tail * (len_max - le) for uinterval, le in zip(time_interval, us_lens)]
     us_msks = [[1] * le + [0] * (len_max - le) for le in us_lens]
-    return us_pois, us_msks, len_max
+    return us_pois, us_msks,us_interval, len_max
 
 
 def split_validation(train_set, valid_portion):
@@ -54,9 +55,14 @@ def split_validation(train_set, valid_portion):
 class Data():
     def __init__(self, data, opt, shuffle=False, graph=None):
         inputs = data[0]
-        inputs, mask, len_max = data_masks(inputs, [0], opt.max_seq_length)
+        time_interval = data[2]
+        # 在mask操作中同样对时间间隔做处理，对应参数的修改已在data_masks函数中完成
+        inputs, mask,interval, len_max = data_masks(inputs,time_interval, [0], opt.max_seq_length)
         self.inputs = np.asarray(inputs)
         self.mask = np.asarray(mask)
+        self.interval = np.asarray(interval)
+        # a是用来后面计算分数时控制比例的
+        self.a=opt.a
         self.len_max = len_max
         self.targets = np.asarray(data[1])
         self.length = len(inputs)
@@ -68,6 +74,8 @@ class Data():
             shuffled_arg = np.arange(self.length)
             np.random.shuffle(shuffled_arg)
             self.inputs = self.inputs[shuffled_arg]
+            # 对interval做shuffle处理
+            self.interval = self.interval[shuffled_arg]
             self.mask = self.mask[shuffled_arg]
             self.targets = self.targets[shuffled_arg]
         n_batch = int(self.length / batch_size)
@@ -78,7 +86,7 @@ class Data():
         return slices
 
     def get_slice(self, i):
-        inputs, mask, targets = self.inputs[i], self.mask[i], self.targets[i]
+        inputs, mask,interval, targets = self.inputs[i], self.mask[i],self.interval[i], self.targets[i]
         items, n_node, A, alias_inputs = [], [], [], []
         for u_input in inputs:
             n_node.append(len(np.unique(u_input)))
@@ -102,7 +110,7 @@ class Data():
             u_A = np.concatenate([u_A_in, u_A_out]).transpose()
             A.append(u_A)
             alias_inputs.append([np.where(node == i)[0][0] for i in u_input])
-        return alias_inputs, A, items, mask, targets
+        return alias_inputs, A, items, mask,interval, targets
 
     def get_len(self):
         return self.len_max

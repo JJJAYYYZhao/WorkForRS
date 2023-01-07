@@ -90,8 +90,12 @@ class TimeAwareMultiHeadAttention(torch.nn.Module):
         time_diff_matric = np.tile(time_diff, (1, 50, 1))
         # print(time_diff_matric.shape)
         # time_diff = torch.
-        time_noise_figure = torch.LongTensor(time_diff_matric)
-        time_noise_figure = time_noise_figure.cuda()
+
+        # 做softmax必须是浮点型，这里报错后进行修改：
+        # ======start======
+        time_noise_figure = torch.LongTensor(time_diff_matric).float()
+        # time_noise_figure = time_noise_figure.cuda()
+        # ======end======
 
         # attn_weights = (1 - self.alpha) * attn_weights + self.alpha * time_noise_figure
 

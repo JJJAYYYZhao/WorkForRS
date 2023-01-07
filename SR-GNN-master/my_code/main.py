@@ -30,6 +30,7 @@ parser.add_argument('--valid_portion', type=float, default=0.1, help='split the 
 #新添参数
 parser.add_argument("--hidden_dropout_prob", default=0.2, type=float)
 parser.add_argument("--max_seq_length", default=20, type=int)
+parser.add_argument("--a", default=0.3, type=float)
 
 opt = parser.parse_args()
 print(opt)

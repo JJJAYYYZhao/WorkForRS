@@ -109,13 +109,16 @@ class SessionGraph(Module):
         for weight in self.parameters():
             weight.data.uniform_(-stdv, stdv)
 
-    def compute_scores(self, hidden, mask):
+    def compute_scores(self, hidden, mask,interval,weight):
         ht = hidden[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]  # batch_size x latent_size
         q1 = self.linear_one(ht).view(ht.shape[0], 1, ht.shape[1])  # batch_size x 1 x latent_size
         q2 = self.linear_two(hidden)  # batch_size x seq_length x latent_size
         alpha = self.linear_three(torch.sigmoid(q1 + q2))
 
         # 加上time-noise参数
+        '''以下为魔改版，具体为将alpha再次归一化后，加上time_interval的归一化，两者加权作为最终的计算分数'''
+        alpha = (1-weight)*torch.softmax(alpha.squeeze(2),dim=1)+weight*torch.softmax(interval.float(),dim=1)
+        alpha=alpha.unsqueeze(2)
 
         a = torch.sum(alpha * hidden * mask.view(mask.shape[0], -1, 1).float(), 1)
         if not self.nonhybrid:
@@ -145,15 +148,16 @@ def trans_to_cpu(variable):
 
 
 def forward(model, i, data):
-    alias_inputs, A, items, mask, targets = data.get_slice(i)
+    alias_inputs, A, items, mask,interval, targets = data.get_slice(i)
     alias_inputs = trans_to_cuda(torch.Tensor(alias_inputs).long())
     items = trans_to_cuda(torch.Tensor(items).long())
     A = trans_to_cuda(torch.Tensor(A).float())
     mask = trans_to_cuda(torch.Tensor(mask).long())
+    interval = trans_to_cuda(torch.Tensor(interval).long())
     hidden = model(items, A)  # GNN后的隐层表达
     get = lambda i: hidden[i][alias_inputs[i]]
     seq_hidden = torch.stack([get(i) for i in torch.arange(len(alias_inputs)).long()])
-    return targets, model.compute_scores(seq_hidden, mask)
+    return targets, model.compute_scores(seq_hidden, mask,interval,data.a)
 
 
 def train_test(model, train_data, test_data):
