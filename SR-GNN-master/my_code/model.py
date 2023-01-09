@@ -13,6 +13,7 @@ import torch
 from torch import nn
 from torch.nn import Module, Parameter
 import torch.nn.functional as F
+from functools import reduce
 # from utils import Data
 
 
@@ -94,10 +95,16 @@ class SessionGraph(Module):
         self.batch_size = opt.batchSize
         self.nonhybrid = opt.nonhybrid
         self.embedding = nn.Embedding(self.n_node, self.hidden_size)
+        # 关于对时间差的嵌入存疑，暂用线性层代替
+        self.timeslice_emb = nn.Linear(1,self.hidden_size)
         self.gnn = GNN(self.hidden_size, opt, opt.max_seq_length, step=opt.step)
         self.linear_one = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
         self.linear_two = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        self.linear_time = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        # 原注意力公式线性层
         self.linear_three = nn.Linear(self.hidden_size, 1, bias=False)
+        # 现注意力公式线性层
+        # self.linear_three = nn.Linear(self.hidden_size*3, 1, bias=False)
         self.linear_transform = nn.Linear(self.hidden_size * 2, self.hidden_size, bias=True)
         self.loss_function = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=opt.lr, weight_decay=opt.l2)
@@ -110,10 +117,24 @@ class SessionGraph(Module):
             weight.data.uniform_(-stdv, stdv)
 
     def compute_scores(self, hidden, mask,interval,weight):
+        # Vn
         ht = hidden[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]  # batch_size x latent_size
         q1 = self.linear_one(ht).view(ht.shape[0], 1, ht.shape[1])  # batch_size x 1 x latent_size
+        # Vi
         q2 = self.linear_two(hidden)  # batch_size x seq_length x latent_size
+        # 时间片
+        time_slice = torch.Tensor(list(min((reduce(lambda x, y: x + y, interval[i, j:])/600),144) for i in range(interval.shape[0]) for j in range(interval.shape[1])))\
+            .long().reshape(interval.shape[0], interval.shape[1],1).float()
+        q3 = self.linear_time(self.timeslice_emb(trans_to_cuda(time_slice)))
+        # 之前计算注意力的公式（加性且不考虑时间片）
         alpha = self.linear_three(torch.sigmoid(q1 + q2))
+        # 修改后的注意力公式（拼接，考虑时间片）
+        # alpha=self.linear_three(torch.sigmoid(torch.concat([q1,q2,q3])))
+
+
+
+
+
 
         # 加上time-noise参数
         '''以下为魔改版，具体为将alpha再次归一化后，加上time_interval的归一化，两者加权作为最终的计算分数'''

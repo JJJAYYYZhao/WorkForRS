@@ -40,7 +40,7 @@ def main():
     train_data = pickle.load(open('../datasets/' + opt.dataset + '/train.txt', 'rb'))
 
     # 修改opt.validation以供测试用
-    opt.validation=True
+    # opt.validation=True
     if opt.validation:
         train_data, valid_data = split_validation(train_data, opt.valid_portion)
         test_data = valid_data
