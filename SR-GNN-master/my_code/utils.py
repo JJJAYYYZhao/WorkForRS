@@ -39,7 +39,7 @@ def data_masks(all_usr_pois,time_interval, item_tail, max_seq_length,):
 
 
 def split_validation(train_set, valid_portion):
-    train_set_x, train_set_y = train_set
+    train_set_x, train_set_y = train_set[0],train_set[1]
     n_samples = len(train_set_x)
     sidx = np.arange(n_samples, dtype='int32')
     np.random.shuffle(sidx)
