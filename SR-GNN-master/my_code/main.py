@@ -36,7 +36,7 @@ parser.add_argument("--a", default=0.3, type=float)
 # 对时间片的缩放控制参数
 parser.add_argument("--time_scale",default=600,type=int)
 # 对时间片的上限控制参数
-parser.add_argument("--time_max",default=144,type=int)
+parser.add_argument("--time_max",default=320,type=int)
 
 
 opt = parser.parse_args()

@@ -20,11 +20,18 @@ print("85%:"+str(sorted_interval[int(len(sorted_interval)*percent)-1]))
 print("min:"+str(sorted_interval[0]))
 print("max:"+str(sorted_interval[int(len(sorted_interval))-1]))
 
+average_a = np.mean(sorted_interval)
+median_a = np.median(sorted_interval)
+print("average:"+str(average_a))
+print("median:"+str(median_a))
+print("scaled_average:"+str(average_a/600))
+print("scaled_median:"+str(median_a/600))
+print(np.percentile(sorted_interval,29))
 # 设置matplotlib正常显示中文和负号
 matplotlib.rcParams['font.sans-serif']=['SimHei']   # 用黑体显示中文
 matplotlib.rcParams['axes.unicode_minus']=False     # 正常显示负号
 # 随机生成（10000,）服从正态分布的数据
-data = sorted_interval
+data = list(x/600 for x in sorted_interval)
 """
 绘制直方图
 data:必选参数，绘图数据
