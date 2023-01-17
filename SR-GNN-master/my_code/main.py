@@ -27,10 +27,17 @@ parser.add_argument('--nonhybrid', action='store_true', help='only use the globa
 parser.add_argument('--validation', action='store_true', help='validation')
 parser.add_argument('--valid_portion', type=float, default=0.1, help='split the portion of training set as validation set')
 
-#新添参数
+# 新添参数
 parser.add_argument("--hidden_dropout_prob", default=0.2, type=float)
+# seq的统一长度控制
 parser.add_argument("--max_seq_length", default=20, type=int)
+# timenoise的权重控制参数
 parser.add_argument("--a", default=0.3, type=float)
+# 对时间片的缩放控制参数
+parser.add_argument("--time_scale",default=600,type=int)
+# 对时间片的上限控制参数
+parser.add_argument("--time_max",default=144,type=int)
+
 
 opt = parser.parse_args()
 print(opt)

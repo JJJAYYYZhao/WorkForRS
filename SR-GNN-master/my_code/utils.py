@@ -63,6 +63,10 @@ class Data():
         self.interval = np.asarray(interval)
         # a是用来后面计算分数时控制比例的
         self.a=opt.a
+        # 对时间片的缩放控制参数
+        self.time_scale=opt.time_scale
+        # 对时间片的上限控制参数
+        self.time_max=opt.time_max
         self.len_max = len_max
         self.targets = np.asarray(data[1])
         self.length = len(inputs)
