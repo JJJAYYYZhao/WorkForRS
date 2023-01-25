@@ -52,10 +52,10 @@ class GNN(Module):
         self.linear_edge_out = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
         self.linear_edge_f = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
 
-        # self.out_dropout = nn.Dropout(args.hidden_dropout_prob)
-        # self.LayerNorm = LayerNorm(self.hidden_size, eps=1e-12)
-        # self.complex_weight = nn.Parameter(
-        #     torch.randn(1, max_seq_length // 2 + 1, self.hidden_size, 2, dtype=torch.float32) * 0.02)
+        self.out_dropout = nn.Dropout(args.hidden_dropout_prob)
+        self.LayerNorm = LayerNorm(self.hidden_size, eps=1e-12)
+        self.complex_weight = nn.Parameter(
+            torch.randn(1, max_seq_length // 2 + 1, self.hidden_size, 2, dtype=torch.float32) * 0.02)
 
     def GNNCell(self, A, hidden):
         input_in = torch.matmul(A[:, :, :A.shape[1]], self.linear_edge_in(hidden)) + self.b_iah
@@ -71,20 +71,21 @@ class GNN(Module):
         hy = newgate + inputgate * (hidden - newgate)
         return hy
 
+    def FFT(self, hidden):
+        # 添个傅里叶变换
+        batch, seq_len, hidden_len = hidden.shape
+        input_tensor = hidden
+        x = torch.fft.rfft(input_tensor, dim=1, norm='ortho')
+        weight = torch.view_as_complex(self.complex_weight)
+        x = x * weight
+        sequence_emb_fft = torch.fft.irfft(x, n=seq_len, dim=1, norm='ortho')
+        hidden_states = self.out_dropout(sequence_emb_fft)
+        hidden = self.LayerNorm(hidden_states + input_tensor)
+        return hidden
+
     def forward(self, A, hidden):
         for i in range(self.step):
             hidden = self.GNNCell(A, hidden)
-
-            # 添个傅里叶变换
-            # batch, seq_len, hidden_len = hidden.shape
-            # input_tensor = hidden
-            # x = torch.fft.rfft(input_tensor, dim=1, norm='ortho')
-            # weight = torch.view_as_complex(self.complex_weight)
-            # x = x * weight
-            # sequence_emb_fft = torch.fft.irfft(x, n=seq_len, dim=1, norm='ortho')
-            # hidden_states = self.out_dropout(sequence_emb_fft)
-            # hidden_states = self.LayerNorm(hidden_states + input_tensor)
-
         return hidden
 
 
@@ -132,9 +133,10 @@ class SessionGraph(Module):
         alpha = (1-weight)*torch.softmax(alpha.squeeze(2),dim=1)+weight*torch.softmax(interval.float(),dim=1)
         alpha=alpha.unsqueeze(2)
 
+        ht =  self.gnn.FFT(hidden)[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]
         a = torch.sum(alpha * hidden * mask.view(mask.shape[0], -1, 1).float(), 1)
         if not self.nonhybrid:
-            a = self.linear_transform(torch.cat([a, ht], 1))
+            a = self.linear_transform(torch.cat([a,ht], 1))
         b = self.embedding.weight[1:]  # n_nodes x latent_size
         scores = torch.matmul(a, b.transpose(1, 0))
         return scores

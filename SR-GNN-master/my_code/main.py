@@ -73,7 +73,6 @@ def main():
         n_node = 310
 
     model = trans_to_cuda(SessionGraph(opt, n_node))
-
     start = time.time()
     best_result = [0, 0]
     best_epoch = [0, 0]
