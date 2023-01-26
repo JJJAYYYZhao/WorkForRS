@@ -11,6 +11,7 @@ import pickle
 import time
 from utils import build_graph, Data, split_validation
 from model import *
+from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default='sample', help='dataset name: diginetica/yoochoose1_4/yoochoose1_64/sample')
@@ -29,6 +30,7 @@ parser.add_argument('--valid_portion', type=float, default=0.1, help='split the 
 opt = parser.parse_args()
 print(opt)
 
+writer = SummaryWriter(log_dir='results/'+opt.dataset+'_'+str(opt.epoch))
 
 def main():
     train_data = pickle.load(open('../datasets/' + opt.dataset + '/train.txt', 'rb'))
@@ -58,7 +60,7 @@ def main():
     for epoch in range(opt.epoch):
         print('-------------------------------------------------------')
         print('epoch: ', epoch)
-        hit, mrr = train_test(model, train_data, test_data)
+        hit, mrr, total_loss = train_test(model, train_data, test_data)
         flag = 0
         if hit >= best_result[0]:
             best_result[0] = hit
@@ -68,6 +70,27 @@ def main():
             best_result[1] = mrr
             best_epoch[1] = epoch
             flag = 1
+        writer.add_scalar(tag="Record/Loss",
+                          scalar_value=total_loss,
+                          global_step=epoch
+                          )
+        writer.add_scalar(tag="Record/Recall",
+                          scalar_value=hit,
+                          global_step=epoch
+                          )
+        writer.add_scalar(tag="Record/MMR",
+                          scalar_value=mrr,
+                          global_step=epoch
+                          )
+        # 最好结果记录
+        writer.add_scalar(tag="Best_Result/Recall",
+                          scalar_value=best_result[0],
+                          global_step=best_epoch[0]
+                          )
+        writer.add_scalar(tag="Best_Result/MRR",
+                          scalar_value=best_result[1],
+                          global_step=best_epoch[1]
+                          )
         print('Best Result:')
         print('\tRecall@20:\t%.4f\tMMR@20:\t%.4f\tEpoch:\t%d,\t%d'% (best_result[0], best_result[1], best_epoch[0], best_epoch[1]))
         bad_counter += 1 - flag
@@ -76,6 +99,9 @@ def main():
     print('-------------------------------------------------------')
     end = time.time()
     print("Run time: %f s" % (end - start))
+    # 超参数
+    writer.add_text(tag="Parameters", text_string=str(opt))
+    writer.close()
 
 
 if __name__ == '__main__':

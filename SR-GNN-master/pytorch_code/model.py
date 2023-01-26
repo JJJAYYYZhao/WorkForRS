@@ -154,4 +154,4 @@ def train_test(model, train_data, test_data):
                 mrr.append(1 / (np.where(score == target - 1)[0][0] + 1))
     hit = np.mean(hit) * 100
     mrr = np.mean(mrr) * 100
-    return hit, mrr
+    return hit, mrr, total_loss
