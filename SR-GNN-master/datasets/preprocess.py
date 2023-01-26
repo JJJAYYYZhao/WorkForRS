@@ -15,7 +15,7 @@ import datetime
 import os
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', default='sample', help='dataset name: diginetica/yoochoose/sample')
+parser.add_argument('--dataset', default='yoochoose', help='dataset name: diginetica/yoochoose/sample')
 opt = parser.parse_args()
 print(opt)
 
@@ -24,11 +24,12 @@ if opt.dataset == 'diginetica':
     dataset = 'train-item-views.csv'
 elif opt.dataset == 'yoochoose':
     dataset = 'yoochoose-clicks.dat'
+    # dataset = 'sample.dat'
 
 print("-- Starting @ %ss" % datetime.datetime.now())
 with open(dataset, "r") as f:
     if opt.dataset == 'yoochoose':
-        reader = csv.DictReader(f, delimiter=',')
+        reader = csv.DictReader(f, delimiter=',',fieldnames=['session_id','timestamp','item_id','category'])
     else:
         reader = csv.DictReader(f, delimiter=';')
     sess_clicks = {}
@@ -49,7 +50,7 @@ with open(dataset, "r") as f:
             sess_date[curid] = date
         curid = sessid
         if opt.dataset == 'yoochoose':
-            item = data['item_id']
+            item = data['item_id'], time.mktime(time.strptime(data['timestamp'][:19], '%Y-%m-%dT%H:%M:%S'))
         else:
             item = data['item_id'], int(data['timeframe'])
         curdate = ''
@@ -68,10 +69,10 @@ with open(dataset, "r") as f:
         date = time.mktime(time.strptime(curdate[:19], '%Y-%m-%dT%H:%M:%S'))
     else:
         date = time.mktime(time.strptime(curdate, '%Y-%m-%d'))
-        for i in list(sess_clicks):
-            sorted_clicks = sorted(sess_clicks[i], key=operator.itemgetter(1))
-            sess_clicks[i] = [c[0] for c in sorted_clicks]
-            sess_timestamps[i] = [c[1] for c in sorted_clicks]
+    for i in list(sess_clicks):
+        sorted_clicks = sorted(sess_clicks[i], key=operator.itemgetter(1))
+        sess_clicks[i] = [c[0] for c in sorted_clicks]
+        sess_timestamps[i] = [c[1] for c in sorted_clicks]
     sess_date[curid] = date
 print("-- Reading data @ %ss" % datetime.datetime.now())
 
@@ -252,7 +253,7 @@ elif opt.dataset == 'yoochoose':
     print(len(tr_seqs[-split4:]))
     print(len(tr_seqs[-split64:]))
 
-    tra4, tra64 = (tr_seqs[-split4:], tr_labs[-split4:]), (tr_seqs[-split64:], tr_labs[-split64:])
+    tra4, tra64 = (tr_seqs[-split4:], tr_labs[-split4:],tr_time_invertal[-split4:]), (tr_seqs[-split64:], tr_labs[-split64:],tr_time_invertal[-split64:])
     seq4, seq64 = tra_seqs[tr_ids[-split4]:], tra_seqs[tr_ids[-split64]:]
 
     pickle.dump(tra4, open('yoochoose1_4/train.txt', 'wb'))
