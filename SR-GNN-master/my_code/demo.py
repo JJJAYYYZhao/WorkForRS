@@ -11,7 +11,7 @@ import matplotlib
 
 percent=0.85
 
-train_data = pickle.load(open('../datasets/' + "sample" + '/train.txt', 'rb'))
+train_data = pickle.load(open('../datasets/' + "yoochoose1_64" + '/train.txt', 'rb'))
 interval=train_data[2]
 sorted_interval=sorted(list(int(reduce(lambda x, y: x + y, interval[i][j:]))for i in range(len(interval)) for j in range(len(interval[i]))))
 
@@ -26,7 +26,8 @@ print("average:"+str(average_a))
 print("median:"+str(median_a))
 print("scaled_average:"+str(average_a/600))
 print("scaled_median:"+str(median_a/600))
-print(np.percentile(sorted_interval,29))
+print(np.percentile(sorted_interval,10))
+exit()
 # 设置matplotlib正常显示中文和负号
 matplotlib.rcParams['font.sans-serif']=['SimHei']   # 用黑体显示中文
 matplotlib.rcParams['axes.unicode_minus']=False     # 正常显示负号
@@ -41,7 +42,7 @@ facecolor:长条形的颜色
 edgecolor:长条形边框的颜色
 alpha:透明度
 """
-plt.hist(data, bins=40, facecolor="blue", edgecolor="black", alpha=0.7)
+plt.hist(data, bins=100, facecolor="blue", edgecolor="black", alpha=0.7)
 # 显示横轴标签
 plt.xlabel("时间片")
 # 显示纵轴标签

@@ -16,6 +16,7 @@ import torch.nn.functional as F
 from functools import reduce
 # from utils import Data
 import os
+from tqdm import tqdm
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 class LayerNorm(nn.Module):
@@ -123,9 +124,15 @@ class SessionGraph(Module):
         # Vi
         q2 = self.linear_two(hidden)  # batch_size x seq_length x latent_size
         # 时间片
-        time_slice = torch.Tensor(list(min(int(reduce(lambda x, y: x + y, interval[i, j:])/time_scale),time_max) for i in range(interval.shape[0]) for j in range(interval.shape[1])))\
-            .long().reshape(interval.shape[0], interval.shape[1])
-        q3 = self.linear_time(self.timeslice_emb(trans_to_cuda(time_slice)))
+        # time_slice = torch.Tensor(list(min(int(reduce(lambda x, y: x + y, interval[i, j:])/time_scale),time_max) for i in range(interval.shape[0]) for j in range(interval.shape[1])))\
+        #     .long().reshape(interval.shape[0], interval.shape[1])
+        # time_slice = torch.Tensor(list(
+        #     min(int(sum(interval[i, j:]) / time_scale), time_max) for i in
+        #     range(interval.shape[0]) for j in range(interval.shape[1]))) \
+        #     .long().reshape(interval.shape[0], interval.shape[1])
+        for j in range(interval.shape[1]):
+            interval[:, j] = torch.clamp(torch.sum(interval[:, j:],1)/time_scale,min=0,max=time_max)
+        q3 = self.linear_time(self.timeslice_emb(interval))
         # 修改后的注意力公式（拼接，考虑时间片）
         alpha=self.linear_three(torch.sigmoid(torch.concat([q1,q2,q3],dim=2)))
         # 加上time-noise参数
@@ -181,7 +188,7 @@ def train_test(model, train_data, test_data):
     total_loss = 0.0
     slices = train_data.generate_batch(model.batch_size)
 
-    for i, j in zip(slices, np.arange(len(slices))):
+    for i, j in zip(slices,tqdm(np.arange(len(slices)))):
         model.optimizer.zero_grad()
         targets, scores = forward(model, i, train_data)
         targets = trans_to_cuda(torch.Tensor(targets).long())
