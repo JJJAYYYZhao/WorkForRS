@@ -11,10 +11,13 @@ import matplotlib
 
 percent=0.85
 
-train_data = pickle.load(open('../datasets/' + "yoochoose1_64" + '/train.txt', 'rb'))
+train_data = pickle.load(open('../datasets/' + "sample" + '/train.txt', 'rb'))
 interval=train_data[2]
 sorted_interval=sorted(list(int(reduce(lambda x, y: x + y, interval[i][j:]))for i in range(len(interval)) for j in range(len(interval[i]))))
-
+# total_interval=[]
+# for item in interval:
+#     total_interval+=item
+# sorted_interval=sorted(total_interval)
 print("85%:"+str(sorted_interval[int(len(sorted_interval)*percent)-1]))
 
 print("min:"+str(sorted_interval[0]))

@@ -69,6 +69,8 @@ class Data():
         self.time_scale=opt.time_scale
         # 对时间片的上限控制参数
         self.time_max=opt.time_max
+        # 对时间差的上限控制参数
+        self.interval_limit=opt.interval_limit
         self.len_max = len_max
         self.targets = np.asarray(data[1])
         self.length = len(inputs)

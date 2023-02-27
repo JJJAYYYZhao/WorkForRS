@@ -41,6 +41,8 @@ parser.add_argument("--a", default=0.3, type=float)
 parser.add_argument("--time_scale",default=600,type=int)
 # 对时间片的上限控制参数
 parser.add_argument("--time_max",default=320,type=int)
+# 对时间差的上限控制参数
+parser.add_argument("--interval_limit",default=60000,type=int)
 # 单独进行测试集的测试
 parser.add_argument("--test_or_train",default="test")
 

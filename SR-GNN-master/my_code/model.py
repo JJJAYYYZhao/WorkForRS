@@ -7,6 +7,7 @@ Created on July, 2018
 """
 
 import datetime
+import copy
 import math
 import numpy as np
 import torch
@@ -117,18 +118,17 @@ class SessionGraph(Module):
         for weight in self.parameters():
             weight.data.uniform_(-stdv, stdv)
 
-    def compute_scores(self, hidden, mask,interval,weight,time_scale,time_max):
+    def compute_scores(self, hidden, mask,interval,weight,time_scale,time_max,interval_limit):
+        #取上限的时间差用于attention计算
+        limit_interval=torch.clamp(copy.deepcopy(interval),min=0,max=interval_limit)
         # Vn
         ht = hidden[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]  # batch_size x latent_size
         q1 = self.linear_one(torch.unsqueeze(ht,2)).permute(0,2,1)  # batch_size x 20 x latent_size
         # Vi
         q2 = self.linear_two(hidden)  # batch_size x seq_length x latent_size
         # 时间片
-        # time_slice = torch.Tensor(list(min(int(reduce(lambda x, y: x + y, interval[i, j:])/time_scale),time_max) for i in range(interval.shape[0]) for j in range(interval.shape[1])))\
-        #     .long().reshape(interval.shape[0], interval.shape[1])
-        # time_slice = torch.Tensor(list(
-        #     min(int(sum(interval[i, j:]) / time_scale), time_max) for i in
-        #     range(interval.shape[0]) for j in range(interval.shape[1]))) \
+        # time_slice = torch.Tensor(list(min(int(reduce(lambda x, y: x + y, interval[i, j:])/time_scale),time_max)\
+        #       for i in range(interval.shape[0]) for j in range(interval.shape[1])))\
         #     .long().reshape(interval.shape[0], interval.shape[1])
         for j in range(interval.shape[1]):
             interval[:, j] = torch.clamp(torch.sum(interval[:, j:],1)/time_scale,min=0,max=time_max)
@@ -137,7 +137,7 @@ class SessionGraph(Module):
         alpha=self.linear_three(torch.sigmoid(torch.concat([q1,q2,q3],dim=2)))
         # 加上time-noise参数
         '''以下为魔改版，具体为将alpha再次归一化后，加上time_interval的归一化，两者加权作为最终的计算分数'''
-        alpha = (1-weight)*torch.softmax(alpha.squeeze(2),dim=1)+weight*torch.softmax(interval.float(),dim=1)
+        alpha = (1-weight)*torch.softmax(alpha.squeeze(2),dim=1)+weight*torch.softmax(limit_interval.float(),dim=1)
         alpha=alpha.unsqueeze(2)
 
         ht =  self.gnn.FFT(hidden)[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]
@@ -178,7 +178,7 @@ def forward(model, i, data):
     hidden = model(items, A)  # GNN后的隐层表达
     get = lambda i: hidden[i][alias_inputs[i]]
     seq_hidden = torch.stack([get(i) for i in torch.arange(len(alias_inputs)).long()])
-    return targets, model.compute_scores(seq_hidden, mask,interval,data.a,data.time_scale,data.time_max)
+    return targets, model.compute_scores(seq_hidden, mask,interval,data.a,data.time_scale,data.time_max,data.interval_limit)
 
 
 def train_test(model, train_data, test_data):
