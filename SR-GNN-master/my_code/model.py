@@ -99,8 +99,12 @@ class SessionGraph(Module):
         self.batch_size = opt.batchSize
         self.nonhybrid = opt.nonhybrid
         self.embedding = nn.Embedding(self.n_node, self.hidden_size)
-        # 对时间差的嵌入,0-144
+        # 对时间片的嵌入,0-144
         self.timeslice_emb = nn.Embedding(opt.time_max+1,self.hidden_size)
+        # 对时间差的嵌入，0-3
+        self.interval_emb = nn.Embedding(opt.interval_limit+1,self.hidden_size)
+        # 输入：cat(hidden,interval_emb)   输出：(100,150,2)作为权重weight
+        self.weight_linear = nn.Linear(self.hidden_size*2,2,bias=True)
         self.gnn = GNN(self.hidden_size, opt, opt.max_seq_length, step=opt.step)
         self.linear_one = nn.Linear(1, opt.max_seq_length, bias=True)
         self.linear_two = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
@@ -137,8 +141,11 @@ class SessionGraph(Module):
         alpha=self.linear_three(torch.sigmoid(torch.concat([q1,q2,q3],dim=2)))
         # 加上time-noise参数
         '''以下为魔改版，具体为将alpha再次归一化后，加上time_interval的归一化，两者加权作为最终的计算分数'''
-        alpha = (1-weight)*torch.softmax(alpha.squeeze(2),dim=1)+weight*torch.softmax(limit_interval.float(),dim=1)
+        linear_output_weight=torch.softmax(self.weight_linear(torch.concat([hidden,self.interval_emb(limit_interval)],dim=2)),dim=2)
+        # alpha = (1-weight)*torch.softmax(alpha.squeeze(2),dim=1)+weight*torch.softmax(limit_interval.float(),dim=1)
+        alpha = linear_output_weight[:,:,0]*torch.softmax(alpha.squeeze(2),dim=1)+linear_output_weight[:,:,1]*torch.softmax(limit_interval.float(),dim=1)
         alpha=alpha.unsqueeze(2)
+
 
         ht =  self.gnn.FFT(hidden)[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]
         a = torch.sum(alpha * hidden * mask.view(mask.shape[0], -1, 1).float(), 1)
