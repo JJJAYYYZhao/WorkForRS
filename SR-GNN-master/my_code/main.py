@@ -17,7 +17,7 @@ from model import *
 from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', default='diginetica', help='dataset name: diginetica/yoochoose1_4/yoochoose1_64/sample')
+parser.add_argument('--dataset', default='sample', help='dataset name: diginetica/yoochoose1_4/yoochoose1_64/sample')
 parser.add_argument('--batchSize', type=int, default=100, help='input batch size')
 parser.add_argument('--hiddenSize', type=int, default=100, help='hidden state size')
 parser.add_argument('--epoch', type=int, default=5, help='the number of epochs to train for')
@@ -34,8 +34,8 @@ parser.add_argument('--valid_portion', type=float, default=0.1, help='split the 
 # 新添参数
 parser.add_argument("--hidden_dropout_prob", default=0.2, type=float)
 # seq的统一长度控制
-parser.add_argument("--max_seq_length", default=150, type=int)
-# timenoise的权重控制参数
+parser.add_argument("--max_seq_length", type=int)
+# timenoise的权重控制参数（已弃用）
 parser.add_argument("--a", default=0.3, type=float)#[0.1, 0.2, 0.3, 0.4]
 # 对时间片的缩放控制参数
 parser.add_argument("--time_scale",type=int)
@@ -49,7 +49,6 @@ parser.add_argument("--interval_limit_percent",default=0.05,type=int)#[0.04,0.05
 parser.add_argument("--test_or_train",default="train")
 
 opt = parser.parse_args()
-print(opt)
 # 避免结果覆写记录
 version=1
 result_dir='results/'+opt.dataset+'_batchsize-'+str(opt.batchSize)+'_lr-'+str(opt.lr)+'_lrdc-'+str(opt.lr_dc)+'_hidden-'+str(opt.hiddenSize)+'_l2-'+str(opt.l2)+'_v-'
@@ -64,7 +63,7 @@ writer = SummaryWriter(log_dir=result_dir+str(version))
 writer.add_text(tag="Parameters", text_string=str(opt))
 def main():
     train_data = pickle.load(open('../datasets/' + opt.dataset + '/train.txt', 'rb'))
-    # 确定上限
+    # 确定时间片、时间差上限参数
     total_data = pickle.load(open('../datasets/' + opt.dataset + '/total.txt', 'rb'))
     interval=total_data[2]
     time_slice = sorted(list(
@@ -85,22 +84,14 @@ def main():
         opt.time_scale = 600
     opt.time_max = int(np.percentile(time_slice, opt.time_max_percent * 100)/opt.time_scale)
     opt.interval_limit = int(np.percentile(time_interval, opt.interval_limit_percent * 100))
-    print("time_max:"+str(opt.time_max))
-    print("interval_limit:"+str(opt.interval_limit))
-    exit()
+    # 确定max_seq_length参数
+    max_seq_length = max([len(seq) for seq in total_data[0]])
+    opt.max_seq_length=(max_seq_length//10+1)*10
+    print(opt)
     model = trans_to_cuda(SessionGraph(opt, n_node))
     if opt.test_or_train=='train':
         # train_data, valid_data = split_validation(train_data, opt.valid_portion)
         test_data = pickle.load(open('../datasets/' + opt.dataset + '/test.txt', 'rb'))
-        # all_train_seq = pickle.load(open('../datasets/' + opt.dataset + '/all_train_seq.txt', 'rb'))
-        # g = build_graph(all_train_seq)
-        '''
-        # 计算所有数据中最大的seq_len
-        max_seq_length=max(max([len(seq) for seq in train_data[0]]),max([len(seq) for seq in test_data[0]]))
-        print(max_seq_length)
-        exit()
-        # 输出： 16
-        '''
         train_data = Data(train_data, opt, shuffle=True)
         test_data = Data(test_data, opt, shuffle=False)
 
@@ -143,7 +134,8 @@ def main():
                               scalar_value=best_result[1],
                               global_step=best_epoch[1]
                               )
-
+            print('Current Result:')
+            print('\tRecall@20:\t%.4f\tMMR@20:\t%.4f\t' % (hit, mrr))
             print('Best Result:')
             print('\tRecall@20:\t%.4f\tMMR@20:\t%.4f\tEpoch:\t%d,\t%d' % (
             best_result[0], best_result[1], best_epoch[0], best_epoch[1]))
