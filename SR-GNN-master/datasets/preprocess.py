@@ -15,7 +15,7 @@ import datetime
 import os
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', default='yoochoose', help='dataset name: diginetica/yoochoose/sample')
+parser.add_argument('--dataset', default='diginetica', help='dataset name: diginetica/yoochoose/sample')
 opt = parser.parse_args()
 print(opt)
 
@@ -31,7 +31,7 @@ with open(dataset, "r") as f:
     if opt.dataset == 'yoochoose':
         reader = csv.DictReader(f, delimiter=',',fieldnames=['session_id','timestamp','item_id','category'])
     else:
-        reader = csv.DictReader(f, delimiter=';')
+        reader = csv.DictReader(f, delimiter=';',fieldnames=['session_id','user_id','item_id','timeframe','eventdate'])
     sess_clicks = {}
     # sess_timestamps记录每段对话的点击时间，后续处理sess_clicks时也相应的处理sess_timestamps
     sess_timestamps = {}
@@ -39,6 +39,7 @@ with open(dataset, "r") as f:
     ctr = 0
     curid = -1
     curdate = None
+    head_row=next(reader)
     for data in reader:
         sessid = data['session_id']
         if curdate and not curid == sessid:
@@ -224,6 +225,7 @@ tr_seqs, tr_dates, tr_time_invertal, tr_labs, tr_ids = process_seqs(tra_seqs, tr
 te_seqs, te_dates, te_time_interval, te_labs, te_ids = process_seqs(tes_seqs, tes_dates, tes_timestamps)
 tra = (tr_seqs, tr_labs, tr_time_invertal)
 tes = (te_seqs, te_labs, te_time_interval)
+total = (tr_seqs+te_seqs, tr_labs+te_labs, tr_time_invertal+te_time_interval)
 print(len(tr_seqs))
 print(len(te_seqs))
 print(tr_seqs[:3], tr_dates[:3], tr_labs[:3])
@@ -240,6 +242,7 @@ if opt.dataset == 'diginetica':
         os.makedirs('diginetica')
     pickle.dump(tra, open('diginetica/train.txt', 'wb'))
     pickle.dump(tes, open('diginetica/test.txt', 'wb'))
+    pickle.dump(total, open('diginetica/total.txt', 'wb'))
     pickle.dump(tra_seqs, open('diginetica/all_train_seq.txt', 'wb'))
 elif opt.dataset == 'yoochoose':
     if not os.path.exists('yoochoose1_4'):
@@ -254,7 +257,11 @@ elif opt.dataset == 'yoochoose':
     print(len(tr_seqs[-split64:]))
 
     tra4, tra64 = (tr_seqs[-split4:], tr_labs[-split4:],tr_time_invertal[-split4:]), (tr_seqs[-split64:], tr_labs[-split64:],tr_time_invertal[-split64:])
+    total4, total64 = (tr_seqs[-split4:]+te_seqs, tr_labs[-split4:]+te_labs,tr_time_invertal[-split4:]+te_time_interval), (tr_seqs[-split64:]+te_seqs, tr_labs[-split64:]+te_labs,tr_time_invertal[-split64:]+te_time_interval)
     seq4, seq64 = tra_seqs[tr_ids[-split4]:], tra_seqs[tr_ids[-split64]:]
+
+    pickle.dump(total4, open('yoochoose1_4/total.txt', 'wb'))
+    pickle.dump(total64, open('yoochoose1_64/total.txt', 'wb'))
 
     pickle.dump(tra4, open('yoochoose1_4/train.txt', 'wb'))
     pickle.dump(seq4, open('yoochoose1_4/all_train_seq.txt', 'wb'))
