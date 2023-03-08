@@ -105,6 +105,8 @@ class SessionGraph(Module):
         self.interval_emb = nn.Embedding(opt.interval_limit+1,self.hidden_size)
         # 输入：cat(hidden,interval_emb)   输出：(100,150,2)作为权重weight
         self.weight_linear = nn.Linear(self.hidden_size*2,2,bias=True)
+        # 输入：ht(100,100)    输出：ht(100,2)
+        self.ht_linear=nn.Linear(self.hidden_size,2)
         self.gnn = GNN(self.hidden_size, opt, opt.max_seq_length, step=opt.step)
         self.linear_one = nn.Linear(1, opt.max_seq_length, bias=True)
         self.linear_two = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
@@ -149,8 +151,11 @@ class SessionGraph(Module):
 
         ht =  self.gnn.FFT(hidden)[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]
         a = torch.sum(alpha * hidden * mask.view(mask.shape[0], -1, 1).float(), 1)
-        if not self.nonhybrid:
-            a = self.linear_transform(torch.cat([a,ht], 1))
+        # if not self.nonhybrid:
+        #     a = self.linear_transform(torch.cat([a,ht], 1))
+        ht_weight=self.ht_linear(ht)
+        a=ht_weight[:,0].unsqueeze(1)*a+ht_weight[:,1].unsqueeze(1)*ht
+
         b = self.embedding.weight[1:]  # n_nodes x latent_size
         scores = torch.matmul(a, b.transpose(1, 0))
         return scores
