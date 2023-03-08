@@ -17,7 +17,7 @@ from model import *
 from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', default='sample', help='dataset name: diginetica/yoochoose1_4/yoochoose1_64/sample')
+parser.add_argument('--dataset', default='diginetica', help='dataset name: diginetica/yoochoose1_4/yoochoose1_64/sample')
 parser.add_argument('--batchSize', type=int, default=100, help='input batch size')
 parser.add_argument('--hiddenSize', type=int, default=100, help='hidden state size')
 parser.add_argument('--epoch', type=int, default=5, help='the number of epochs to train for')
@@ -38,29 +38,56 @@ parser.add_argument("--max_seq_length", default=150, type=int)
 # timenoise的权重控制参数
 parser.add_argument("--a", default=0.3, type=float)#[0.1, 0.2, 0.3, 0.4]
 # 对时间片的缩放控制参数
-parser.add_argument("--time_scale",default=1,type=int)
+parser.add_argument("--time_scale",type=int)
 # 对时间片的上限控制参数
-parser.add_argument("--time_max",default=346,type=int)#[0.4,0.5,0.6]
+parser.add_argument("--time_max",type=int)
+parser.add_argument("--time_max_percent",default=0.5,type=int)#[0.4,0.5,0.6]
 # 对时间差的上限控制参数
-parser.add_argument("--interval_limit",default=3,type=int)#[0.04,0.05,0.06]
+parser.add_argument("--interval_limit",type=int)
+parser.add_argument("--interval_limit_percent",default=0.05,type=int)#[0.04,0.05,0.06]
 # 单独进行测试集的测试
 parser.add_argument("--test_or_train",default="train")
 
 opt = parser.parse_args()
 print(opt)
-
-writer = SummaryWriter(log_dir='results/'+opt.dataset+'_'+str(opt.epoch)+'_a='+str(opt.a)+'_seqlen='+str(opt.max_seq_length))
-
-
+# 避免结果覆写记录
+version=1
+result_dir='results/'+opt.dataset+'_batchsize-'+str(opt.batchSize)+'_lr-'+str(opt.lr)+'_lrdc-'+str(opt.lr_dc)+'_hidden-'+str(opt.hiddenSize)+'_l2-'+str(opt.l2)+'_v-'
+while(True):
+    if os.path.exists(result_dir+str(version)):
+        version+=1
+        continue
+    os.makedirs(result_dir+str(version))
+    break
+writer = SummaryWriter(log_dir=result_dir+str(version))
+# 超参数记录
+writer.add_text(tag="Parameters", text_string=str(opt))
 def main():
     train_data = pickle.load(open('../datasets/' + opt.dataset + '/train.txt', 'rb'))
+    # 确定上限
+    total_data = pickle.load(open('../datasets/' + opt.dataset + '/total.txt', 'rb'))
+    interval=total_data[2]
+    time_slice = sorted(list(
+        int(reduce(lambda x, y: x + y, interval[i][j:])) for i in range(len(interval)) for j in
+        range(len(interval[i]))))
+    total_interval = []
+    for item in interval:
+        total_interval += item
+    time_interval = sorted(total_interval)
     if opt.dataset == 'diginetica':
         n_node = 43098
+        opt.time_scale=600
     elif opt.dataset == 'yoochoose1_64' or opt.dataset == 'yoochoose1_4':
         n_node = 37484
+        opt.time_scale = 1
     else:
         n_node = 310
-
+        opt.time_scale = 600
+    opt.time_max = int(np.percentile(time_slice, opt.time_max_percent * 100)/opt.time_scale)
+    opt.interval_limit = int(np.percentile(time_interval, opt.interval_limit_percent * 100))
+    print("time_max:"+str(opt.time_max))
+    print("interval_limit:"+str(opt.interval_limit))
+    exit()
     model = trans_to_cuda(SessionGraph(opt, n_node))
     if opt.test_or_train=='train':
         # train_data, valid_data = split_validation(train_data, opt.valid_portion)
@@ -129,8 +156,6 @@ def main():
         if not os.path.exists('model'):
             os.makedirs('model')
         torch.save(model.state_dict(),'model/'+opt.dataset+'_'+str(opt.epoch)+'_a='+str(opt.a)+'_seqlen='+str(opt.max_seq_length)+'.pth')
-        # 超参数
-        writer.add_text(tag="Parameters", text_string=str(opt))
         writer.close()
     else:
         test_data = pickle.load(open('../datasets/' + opt.dataset + '/test.txt', 'rb'))
