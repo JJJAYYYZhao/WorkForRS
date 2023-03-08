@@ -34,17 +34,17 @@ parser.add_argument('--valid_portion', type=float, default=0.1, help='split the 
 # 新添参数
 parser.add_argument("--hidden_dropout_prob", default=0.2, type=float)
 # seq的统一长度控制
-parser.add_argument("--max_seq_length", default=20, type=int)
+parser.add_argument("--max_seq_length", default=150, type=int)
 # timenoise的权重控制参数
-parser.add_argument("--a", default=0.3, type=float)
+parser.add_argument("--a", default=0.3, type=float)#[0.1, 0.2, 0.3, 0.4]
 # 对时间片的缩放控制参数
-parser.add_argument("--time_scale",default=600,type=int)
+parser.add_argument("--time_scale",default=1,type=int)
 # 对时间片的上限控制参数
-parser.add_argument("--time_max",default=320,type=int)
+parser.add_argument("--time_max",default=346,type=int)#[0.4,0.5,0.6]
 # 对时间差的上限控制参数
-parser.add_argument("--interval_limit",default=60000,type=int)
+parser.add_argument("--interval_limit",default=3,type=int)#[0.04,0.05,0.06]
 # 单独进行测试集的测试
-parser.add_argument("--test_or_train",default="test")
+parser.add_argument("--test_or_train",default="train")
 
 opt = parser.parse_args()
 print(opt)
@@ -63,8 +63,8 @@ def main():
 
     model = trans_to_cuda(SessionGraph(opt, n_node))
     if opt.test_or_train=='train':
-        train_data, valid_data = split_validation(train_data, opt.valid_portion)
-        test_data = valid_data
+        # train_data, valid_data = split_validation(train_data, opt.valid_portion)
+        test_data = pickle.load(open('../datasets/' + opt.dataset + '/test.txt', 'rb'))
         # all_train_seq = pickle.load(open('../datasets/' + opt.dataset + '/all_train_seq.txt', 'rb'))
         # g = build_graph(all_train_seq)
         '''
